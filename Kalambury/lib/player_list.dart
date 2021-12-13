@@ -39,7 +39,7 @@ class _PlayerListState extends State<PlayerList> {
 
   String word = "Randome me";
 
-  bool ready = false;
+  bool ready = true;
   bool firstTime = true;
 
   String _getWord() {
@@ -51,14 +51,16 @@ class _PlayerListState extends State<PlayerList> {
   }
 
   void _Done() {
-    setState(() {
-      firstTime = false;
-      ready = true;
-    });
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => WordActivity(haslo: word)),
     );
+    setState(() {
+      for(Player player in activePlayerList) player.ready = false;
+      firstTime = false;
+      ready = false;
+    });
+
   }
 
   void _askForName(){
@@ -103,11 +105,26 @@ class _PlayerListState extends State<PlayerList> {
   {
     //add points to player based on photo
     // for now insta wins the game
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => WinnerActivity(imie: player.name)),
-    );
+    setState(() {
+      player.ready=true;
+      player.points++;
+      ready = true;
+      for(Player player in activePlayerList) {
+        if (!player.ready) {
+          ready = false;
+          break;
+        }
+      }
+    });
+
+
+    if(player.points == 5)
+      {    Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => WinnerActivity(imie: player.name)),
+      );
+      }
   }
 
   @override
@@ -181,9 +198,10 @@ class _PlayerListState extends State<PlayerList> {
                                   fontFamily: 'Sketchy',
                                 ),
                               ),
+                                if(!player.ready)
                                 ElevatedButton(
-                                  onPressed:(ready && !player.ready) ? (){_addPhotoToPlayer(player);} : (){_removePlayer(player);},
-                                  child: (ready && !player.ready) ? Icon(Icons.camera_alt_outlined) : Icon(Icons.exit_to_app ) ,
+                                  onPressed:(!firstTime) ? (){_addPhotoToPlayer(player);} : (){_removePlayer(player);},
+                                  child: (!firstTime) ? Icon(Icons.camera_alt_outlined) : Icon(Icons.exit_to_app ) ,
                                   style: ElevatedButton.styleFrom(
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(32.0)
@@ -212,7 +230,7 @@ class _PlayerListState extends State<PlayerList> {
               ),
             ),
       ),
-      floatingActionButton:!ready ? FloatingActionButton(
+      floatingActionButton: (activePlayerList.isNotEmpty && ready)  ? FloatingActionButton(
         onPressed: _Done,
         tooltip: 'let\'s go',
         child: const Icon(Icons.thumb_up_alt_outlined),
