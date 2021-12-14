@@ -4,16 +4,14 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/vision/v1.dart';
+import 'package:googleapis/vision/v1.dart' as gcloud;
 import 'package:kalambury/winner_display.dart';
 import 'package:kalambury/word_display.dart';
-import 'package:collection/collection.dart';
-import 'camera_controller.dart';
-import 'package:http/http.dart' as http;
-import 'package:googleapis/vision/v1.dart' as gcloud;
-import 'package:image/image.dart' as img;
 
+import 'camera_controller.dart';
 import 'credential_provider.dart';
 
 
@@ -127,28 +125,32 @@ class _PlayerListState extends State<PlayerList> {
 
   Future<void> _countPlayerPoints() async {
 
-    var path = playersImages["user"];
+    for(Player player in activePlayerList) {
 
-    File file = File(path);
+      var path = playersImages[player.name];
 
-    var imageBytes = await file.readAsBytes();
+      File file = File(path);
 
-    var _client = CredentialsProvider().client;
+      var imageBytes = await file.readAsBytes();
 
-    var _vision = VisionApi(await _client);
+      var _client = CredentialsProvider().client;
 
-    var response = await annotateImage(_vision, imageBytes);
+      var _vision = VisionApi(await _client);
 
-    print(response!.webDetection!.webEntities!.map((w) => w.description).toString());
+      var response = await annotateImage(_vision, imageBytes);
 
-    //word
+      print("Veryfining image for user " + player.name);
 
+      print(response!.webDetection!.webEntities!.map((w) => {w.description.toString() }).toString());
 
-    setState(() {
-      for(Player player in activePlayerList) {
-          player.points = 2;
-      }
-    });
+      var entity = response.webDetection!.webEntities!.firstWhereOrNull((w) => w.description.toString().toLowerCase().contains(word));
+
+      var score = (entity!=null)? entity.score : null;
+      print("For word: '" + word +"' score is " + (score ?? 0).toString());
+      player.points = (score != null)? (100*score).toInt() : 0;
+    }
+
+    setState(() {});
 
   }
 
