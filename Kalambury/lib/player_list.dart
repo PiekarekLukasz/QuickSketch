@@ -1,12 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:googleapis/vision/v1.dart';
 import 'package:kalambury/winner_display.dart';
 import 'package:kalambury/word_display.dart';
 import 'package:collection/collection.dart';
 import 'camera_controller.dart';
+import 'package:http/http.dart' as http;
+import 'package:googleapis/vision/v1.dart' as gcloud;
+import 'package:image/image.dart' as img;
+
+import 'credential_provider.dart';
+
 
 class PlayerListActivity extends StatelessWidget {
   const PlayerListActivity({Key? key}) : super(key: key);
@@ -116,15 +125,74 @@ class _PlayerListState extends State<PlayerList> {
     });
   }
 
-  void _countPlayerPoints(){
+  Future<void> _countPlayerPoints() async {
+
+    var path = playersImages["user"];
+
+    File file = File(path);
+
+    var imageBytes = await file.readAsBytes();
+
+    var _client = CredentialsProvider().client;
+
+    var _vision = VisionApi(await _client);
+
+    var response = await annotateImage(_vision, imageBytes);
+
+    print(response!.webDetection!.webEntities!.map((w) => w.description).toString());
+
+    //word
+
+
     setState(() {
       for(Player player in activePlayerList) {
-        if (playersImages.containsKey(player.name)) {
           player.points = 2;
-        }
       }
     });
-    //Tutaj wysyłamy requesty do API, na podstawie wyników updatujemy
+
+  }
+
+  Future<gcloud.AnnotateImageResponse?> invokeAnnotate(gcloud.VisionApi vision,
+      {required String $fields,
+        required gcloud.BatchAnnotateImagesRequest request}) async {
+      gcloud.AnnotateImageResponse response;
+    for (int attempt = 1; attempt <= 10; attempt++) {
+      final batchResponse =
+      await vision.images.annotate(request, $fields: $fields);
+
+      final response = batchResponse.responses!.single;
+      if (response.error == null) {
+        return response;
+      }
+    }
+  }
+
+  Future<gcloud.AnnotateImageResponse?> annotateImage(
+      gcloud.VisionApi vision, Uint8List image) async {
+    const $fields = 'responses(error,textAnnotations/'
+        'description,webDetection(webEntities(description,score)))';
+
+    final request = gcloud.BatchAnnotateImagesRequest()
+      ..requests = [
+        gcloud.AnnotateImageRequest()
+          ..image = (gcloud.Image()..content = base64Encode(image))
+          ..features = [
+            gcloud.Feature()
+              ..type = 'WEB_DETECTION'
+              ..maxResults = 10,
+            gcloud.Feature()
+              ..type = 'OBJECT_LOCALIZATION'
+              ..maxResults = 10,
+            gcloud.Feature()
+              ..type = 'LABEL_DETECTION'
+              ..maxResults = 10,
+            gcloud.Feature()
+              ..type = 'TEXT_DETECTION'
+              ..maxResults = 10
+          ]
+      ];
+
+    return invokeAnnotate(vision, $fields: $fields, request: request);
   }
 
   void _updatePlayersState() {
@@ -244,18 +312,27 @@ class _PlayerListState extends State<PlayerList> {
                               ),
                                 if(!player.ready)
                                 ElevatedButton(onPressed: () async {
-                                  final cameras = await availableCameras();
-                                  final firstCamera = cameras.first;
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) =>  TakePictureScreen(
-                                          camera: firstCamera,
-                                          returnImagePath: (path){setImagePath(path, player.name);}
+                                  if(firstTime) {
+                                    _removePlayer(player);
+                                  }
+                                  else {
+                                    final cameras = await availableCameras();
+                                    final firstCamera = cameras.first;
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            TakePictureScreen(
+                                                camera: firstCamera,
+                                                returnImagePath: (path) {
+                                                  setImagePath(
+                                                      path, player.name);
+                                                }
+                                            ),
                                       ),
-                                    ),
-                                  );
+                                    );
 
-                                  _updatePlayersState();
+                                    _updatePlayersState();
+                                  }
                                 },
                                   child: (!firstTime) ? Icon(Icons.camera_alt_outlined) : Icon(Icons.exit_to_app ) ,
                                   style: ElevatedButton.styleFrom(
@@ -311,3 +388,4 @@ class _PlayerListState extends State<PlayerList> {
     );
   }
 }
+

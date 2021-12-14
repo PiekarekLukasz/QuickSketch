@@ -33,6 +33,9 @@ dependencies:
   path_provider:
   path:
   gallery_saver: 2.3.2
+  googleapis: 7.0.0
+  googleapis_auth: 1.3.0
+  image: 3.1.0
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
@@ -56,6 +59,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter.
 flutter:
+  assets:
+    - assets/
   fonts:
     - family: Sketchy
       fonts:
