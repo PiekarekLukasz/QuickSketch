@@ -1,9 +1,37 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
-class WordActivity extends StatelessWidget {
-  final String haslo;
-  const WordActivity({Key? key, required this.haslo}) : super(key: key);
-  // This widget is the root of your application.
+
+class WordActivity extends StatefulWidget {
+  const WordActivity({Key? key, required this.setWord}) : super(key: key);
+
+  final Function(String path) setWord;
+
+  @override
+  State<WordActivity> createState() => WordActivityState();
+}
+
+class WordActivityState extends State<WordActivity> {
+
+
+  var possibleObjects = ["table","chair","tshirt","laptop","keyboard","mouse"];
+
+  var title = "";
+
+  void _reroll(){
+    print("rolling title");
+    setState(() {
+      title = possibleObjects[Random().nextInt(6)];
+    });
+    widget.setWord(title);
+  }
+
+  @override
+  void initState() {
+    title = possibleObjects[Random().nextInt(6)];
+    super.initState();
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -23,13 +51,23 @@ class WordActivity extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               Text(
-                haslo,
+                title,
                 style: const TextStyle(
                   color: Colors.black,
                   fontSize: 48,
                   fontFamily: 'Sketchy',
                 ),
               ),
+              ElevatedButton(
+                onPressed: _reroll,
+                child: const Icon(Icons.restart_alt),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(32.0)
+                  ),
+                  minimumSize: Size(80, 50),
+                ),
+              )
             ],
           ),
         ),
@@ -41,4 +79,5 @@ class WordActivity extends StatelessWidget {
       ),
     );
   }
+
 }

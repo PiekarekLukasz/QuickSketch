@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:kalambury/winner_display.dart';
 import 'package:kalambury/word_display.dart';
+import 'package:collection/collection.dart';
+import 'camera_controller.dart';
 
 class PlayerListActivity extends StatelessWidget {
   const PlayerListActivity({Key? key}) : super(key: key);
@@ -37,23 +41,35 @@ class _PlayerListState extends State<PlayerList> {
 
   var activePlayerList = List<Player>.empty(growable: true);
 
+  var playersImages = new Map();
+
   String word = "Randome me";
 
-  bool ready = true;
-  bool firstTime = true;
-
-  String _getWord() {
-    String newWord = "TO_DO"; // pozyskanie
+  void setWord(s){
     setState(() {
-      word = newWord;
+      word = s;
     });
-    return newWord;
   }
 
+  void setImagePath(dynamic childValue, playerName) {
+
+    print("Updating player images map");
+
+    setState(() {
+      playersImages[playerName] = childValue;
+    });
+
+    print(playersImages.entries);
+  }
+
+  bool ready = false;
+  bool firstTime = true;
+
   void _Done() {
+    print("Finishing game");
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => WordActivity(haslo: word)),
+      MaterialPageRoute(builder: (context) => WordActivity(setWord: (word)=> {setWord(word)})),
     );
     setState(() {
       for(Player player in activePlayerList) player.ready = false;
@@ -84,7 +100,6 @@ class _PlayerListState extends State<PlayerList> {
           );
         }
         );
-
   }
 
   void _addPlayer(String name)
@@ -101,30 +116,51 @@ class _PlayerListState extends State<PlayerList> {
     });
   }
 
-  void _addPhotoToPlayer(Player player)
-  {
-    //add points to player based on photo
-    // for now insta wins the game
+  void _countPlayerPoints(){
     setState(() {
-      player.ready=true;
-      player.points++;
-      ready = true;
       for(Player player in activePlayerList) {
-        if (!player.ready) {
-          ready = false;
-          break;
+        if (playersImages.containsKey(player.name)) {
+          player.points = 2;
         }
       }
     });
+    //Tutaj wysyłamy requesty do API, na podstawie wyników updatujemy
+  }
 
+  void _updatePlayersState() {
 
-    if(player.points == 5)
-      {    Navigator.pop(context);
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => WinnerActivity(imie: player.name)),
-      );
+    for(Player player in activePlayerList) {
+      if (playersImages.containsKey(player.name)) {
+        player.ready = true;
       }
+    }
+
+    setState(() {
+
+      //activePlayerList.map((player) => player.ready = playersImages.containsKey(player.name));
+
+      var notReadyPlayer = activePlayerList.firstWhereOrNull((element) => !element.ready);
+      print("NOT readty");
+      print(notReadyPlayer?.name);
+      ready = notReadyPlayer == null ||activePlayerList.isEmpty ;
+    });
+  }
+
+    void _finishTheGame() {
+
+    var winner = activePlayerList.reduce((current, next) =>
+    (next.points > current.points) ? next : current);
+
+    {
+      Timer(
+          Duration(seconds: 1),
+      () => Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+              builder: (context) => WinnerActivity(imie: winner.name)),
+              (Route<dynamic> route) => false
+      ));
+    }
   }
 
   @override
@@ -181,6 +217,7 @@ class _PlayerListState extends State<PlayerList> {
                          ),
                       borderRadius: const BorderRadius.all(Radius.circular(20)),
                       ),
+
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
@@ -198,9 +235,28 @@ class _PlayerListState extends State<PlayerList> {
                                   fontFamily: 'Sketchy',
                                 ),
                               ),
+                              Text("Ready",
+                                style: TextStyle(
+                                  color: player.ready? Colors.green: Colors.black,
+                                  fontSize: 28,
+                                  fontFamily: 'Sketchy',
+                                ),
+                              ),
                                 if(!player.ready)
-                                ElevatedButton(
-                                  onPressed:(!firstTime) ? (){_addPhotoToPlayer(player);} : (){_removePlayer(player);},
+                                ElevatedButton(onPressed: () async {
+                                  final cameras = await availableCameras();
+                                  final firstCamera = cameras.first;
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) =>  TakePictureScreen(
+                                          camera: firstCamera,
+                                          returnImagePath: (path){setImagePath(path, player.name);}
+                                      ),
+                                    ),
+                                  );
+
+                                  _updatePlayersState();
+                                },
                                   child: (!firstTime) ? Icon(Icons.camera_alt_outlined) : Icon(Icons.exit_to_app ) ,
                                   style: ElevatedButton.styleFrom(
                                     shape: RoundedRectangleBorder(
@@ -210,8 +266,24 @@ class _PlayerListState extends State<PlayerList> {
                                   ),
                                 ),
                             ],
+
                         ),
+
                     ) ,
+                  SizedBox.fromSize(
+                    size: const Size(20,10),
+                  ),
+                  if(!firstTime)
+                  ElevatedButton(
+                    onPressed: ready? _countPlayerPoints: null,
+                    child: const Text("Calculate results"),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(32.0)
+                      ),
+                      minimumSize: Size(80, 50),
+                    ),
+                  ),
                   SizedBox.fromSize(
                     size: const Size(100,100),
                   ),
@@ -230,11 +302,12 @@ class _PlayerListState extends State<PlayerList> {
               ),
             ),
       ),
-      floatingActionButton: (activePlayerList.isNotEmpty && ready)  ? FloatingActionButton(
-        onPressed: _Done,
+      floatingActionButton: FloatingActionButton(
+        onPressed: ready? _finishTheGame: _Done,
         tooltip: 'let\'s go',
+        backgroundColor: ready? Colors.green: Colors.grey,
         child: const Icon(Icons.thumb_up_alt_outlined),
-      ) : null,
+      ),
     );
   }
 }
