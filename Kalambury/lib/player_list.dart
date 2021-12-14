@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:kalambury/winner_display.dart';
 import 'package:kalambury/word_display.dart';
+import 'package:googleapis/vision/v1.dart' as gcloud;
+import 'package:image/image.dart' as img;
 
 class PlayerListActivity extends StatelessWidget {
   const PlayerListActivity({Key? key}) : super(key: key);
@@ -32,10 +35,62 @@ class Player{
 
   Player(this.name);
 }
+/*
+WARNING
+Te dwie funkcje sa zerzniete z
+https://github.com/lambdaxymox/fuchsia/blob/4400e1b5264ef77a842f21e5d429c9512714aef9/sdk/testing/gcloud_lib/lib/src/image_matchers.dart
+proboje je dostosowac do projektu, przede wszystkim musimy dostosowac pola (fields) zeby byly takie jakie
+nas interesuja w celu gry
+WAZNE trzeba tez stworzyc i skonfigurowac vision (VisionApi) zeby mial ten klucz co wygenerowalem
+?key=AIzaSyCXisrgD2FiOrJphhRnMGN3YF6jJg3RDgY
+
+ */
+Future<gcloud.AnnotateImageResponse?> invokeAnnotate(gcloud.VisionApi vision,
+    {required String $fields,
+      required gcloud.BatchAnnotateImagesRequest request}) async {
+  gcloud.AnnotateImageResponse response;
+  for (int attempt = 1; attempt <= 10; attempt++) {
+    final batchResponse =
+    await vision.images.annotate(request, $fields: $fields);
+
+    final response = batchResponse.responses!.single;
+    if (response.error == null) {
+      return response;
+    }
+  }
+}
+
+Future<gcloud.AnnotateImageResponse?> annotateImage(
+    gcloud.VisionApi vision, img.Image image) async {
+  // Field selector constructed using
+  // https://developers.google.com/apis-explorer fields editor.
+  const $fields = 'responses(error,textAnnotations/'
+      'description,webDetection(webEntities(description,score)))';
+
+  final request = gcloud.BatchAnnotateImagesRequest()
+    ..requests = [
+      gcloud.AnnotateImageRequest()
+        ..image = (gcloud.Image()..content = base64Encode(img.encodePng(image)))
+        ..features = [
+          gcloud.Feature()
+            ..type = 'WEB_DETECTION'
+            ..maxResults = 3,
+          gcloud.Feature()
+            ..type = 'TEXT_DETECTION'
+            ..maxResults = 1
+        ]
+    ];
+
+  return invokeAnnotate(vision, $fields: $fields, request: request);
+}
 
 class _PlayerListState extends State<PlayerList> {
 
   var activePlayerList = List<Player>.empty(growable: true);
+  var imageMap = Map<int, int>();
+  _PlayerListState() {
+    imageMap[0]=6;
+  }
 
   String word = "Randome me";
 
